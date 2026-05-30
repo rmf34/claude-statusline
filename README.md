@@ -11,7 +11,7 @@ Two-line output:
 
 ```
 Claude Opus 4.7 (200k) | git:master
-▓▓▓░░░░░░░ 24% | 5h 🟢 32% ↓18% 2h45m | 7d 🟡 41% ↑3% 4d12h
+▓▓▓░░░░░░░ 24% | 5h 🟢 32% ↓18% 2h45m | 7d 🟡 41% ↑3% 4d:12h
 ```
 
 Reading the second line:
@@ -22,8 +22,9 @@ Reading the second line:
 - `5h 🟢 32% ↓18% 2h45m`: 5-hour window is at 32%, you're 18% **below**
   the pace you'd need to maintain to hit 100% exactly at reset. Resets
   in 2h45m. Green light because you have headroom.
-- `7d 🟡 41% ↑3% 4d12h`: 7-day window is at 41%, 3% **above** pace.
-  Yellow because you're slightly ahead of schedule. Resets in 4d12h.
+- `7d 🟡 41% ↑3% 4d:12h`: 7-day window is at 41%, 3% **above** pace.
+  Yellow because you're slightly ahead of schedule. Resets in 4 days,
+  12 hours (DD:HH format for granularity beyond just "4d").
 
 The pace delta is the headline number. `↓` means you have more room than
 the elapsed time suggests. `↑` means you're spending faster than your
@@ -52,10 +53,16 @@ budget allows. `→` means on pace.
    {
      "statusLine": {
        "type": "command",
-       "command": "~/.claude/statusline.sh"
+       "command": "~/.claude/statusline.sh",
+       "refreshInterval": 10
      }
    }
    ```
+
+   `refreshInterval` (seconds) keeps the countdown timers and pace deltas
+   accurate between tool-use events. Without it the status line only
+   updates when Claude Code triggers a render. Requires Claude Code
+   >=2.1.97.
 
 3. Restart Claude Code (or `/statusline` to reload).
 
@@ -127,9 +134,9 @@ parts you'd reasonably want to change are at the top of the helpers:
 - `make_bar()`: bar width (10 cells) and where the dim-red "danger zone"
   marker starts (cell 8, i.e. 80%).
 
-Window sizes (5h = 18000s, 7d = 604800s) are passed as arguments to the
-helpers from the `Compute` section near the bottom, so changing them is
-a one-line edit.
+Window sizes are defined as constants at the top of the script
+(`WINDOW_5H=18000`, `WINDOW_7D=604800`) and referenced everywhere else,
+so changing them is a one-line edit.
 
 ## Tests
 

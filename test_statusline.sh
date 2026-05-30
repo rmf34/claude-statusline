@@ -70,6 +70,19 @@ assert_contains "first_hour_high_usage_is_red" "5h 🔴" "$out"
 out=$(make_json 24 30 0 0 0 | bash "$SCRIPT")
 assert_contains "no_rate_data_falls_back_to_traffic_light" "5h 🟢" "$out"
 
+# 7. 7d reset renders in DD:HH format.
+#    resets_at = now + 4d + 12h = now + 388800
+out=$(make_json 24 40 0 40 $((now + 388800)) | bash "$SCRIPT")
+assert_contains "7d_reset_renders_dd_hh" "4d:12h" "$out"
+
+# 8. Malformed input (not JSON) produces fallback output without errors.
+out=$(echo "this is not json" | bash "$SCRIPT" 2>/dev/null)
+assert_contains "malformed_input_shows_model_fallback" "unknown" "$out"
+
+# 9. Empty input produces fallback output without errors.
+out=$(echo "" | bash "$SCRIPT" 2>/dev/null)
+assert_contains "empty_input_shows_model_fallback" "unknown" "$out"
+
 echo
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
