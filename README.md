@@ -140,10 +140,11 @@ so changing them is a one-line edit.
 
 ## Tests
 
-Six integration tests, plain bash, no extra deps. They pipe synthetic
-session JSON into the script and grep the output for the expected
-pace-light emoji, covering the `rate_light()` branches that are easy to
-break (especially the first-hour suppression band):
+26 integration tests, plain bash, no extra deps. They pipe synthetic
+session JSON into the script and check the output for expected values,
+covering rate_light branches, traffic_light boundaries, pace_delta
+arrows, reset-time formatting, context bar rendering, float truncation,
+model name preservation, and malformed-input fallback:
 
 ```bash
 bash test_statusline.sh
