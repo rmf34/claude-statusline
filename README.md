@@ -1,9 +1,11 @@
 # Claude Code statusline with pace delta
 
+[![CI](https://github.com/rmf34/claude-statusline/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/rmf34/claude-statusline/actions/workflows/ci.yml)
+
 A Claude Code statusline that shows whether you're burning your 5h and 7d
 quota faster than the time window allows. Most statuslines show usage
-percentage. This one tells you if that percentage is sustainable. This is
-a good place to be lazy.
+percentage which is a poor indicator of usage. This one actually tells you
+if your usage rate is sustainable.
 
 ## What it looks like
 
@@ -149,6 +151,16 @@ model name preservation, and malformed-input fallback:
 ```bash
 bash test_statusline.sh
 ```
+
+A pre-commit hook runs shellcheck + the full test suite on every commit.
+After cloning, point git at the tracked hooks directory:
+
+```bash
+git config core.hooksPath hooks
+```
+
+Requires `shellcheck` (`brew install shellcheck`). The hook will fail if
+shellcheck is not installed.
 
 ## Compatibility
 

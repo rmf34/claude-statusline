@@ -1,0 +1,15 @@
+#!/bin/bash
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+echo "── shellcheck ──"
+if ! command -v shellcheck >/dev/null 2>&1; then
+    echo "shellcheck not installed (brew install shellcheck)" >&2
+    exit 1
+fi
+shellcheck "$REPO_ROOT"/*.sh
+echo "shellcheck: ok"
+
+echo "── tests ──"
+bash "$REPO_ROOT/test_statusline.sh"
