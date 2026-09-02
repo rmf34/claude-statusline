@@ -140,8 +140,11 @@ assert_contains "pace_delta_on_pace_arrow" "→" "$out"
 # ── format_reset_5h ───────────────────────────────────────────────────────
 
 # 18. 5h reset: hours + minutes format (Xh pattern present).
-#     resets_at = now + 2h31m = now + 9060 (extra 60s absorbs clock skew)
-out=$(make_json 24 40 $((now + 9060)) 0 0 | bash "$SCRIPT")
+#     resets_at = now + 2h30m30s = now + 9030. The half-minute puts the
+#     expected value mid-bucket: a whole-minute offset renders the minute
+#     above until a second of wall clock passes, which fails on a host fast
+#     enough to reach this test inside the same second.
+out=$(make_json 24 40 $((now + 9030)) 0 0 | bash "$SCRIPT")
 assert_contains "5h_reset_hours_minutes" "2h30m" "$out"
 
 # 19. 5h reset: minutes-only when under 1h.
