@@ -208,7 +208,7 @@ pace_7d=$(pace_delta "$rate_7d" "$rate_7d_resets" "$WINDOW_7D")
 printf "%s:%s | %s (%s) | git:%s\n" \
     "$host" "$repo" "$model" "$ctx_size_fmt" "$git_branch"
 
-printf "%b %.0f%% | 5h %s%.0f%% %s %s | 7d %s%.0f%% %s %s\n" \
+printf "%b %.0f%% | 5h %s %.0f%% %s %s | 7d %s %.0f%% %s %s\n" \
     "$ctx_bar" "$ctx_pct" \
     "$rate_5h_emoji" "$rate_5h" "$pace_5h" "$reset_5h" \
     "$rate_7d_emoji" "$rate_7d" "$pace_7d" "$reset_7d"
