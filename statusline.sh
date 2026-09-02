@@ -2,14 +2,15 @@
 # Claude Code statusline — two-line with pace delta, progress bar, reset times
 
 input=$(cat)
+echo "$input" >> /tmp/cc_statusline_dumps.jsonl
 NOW=$(date +%s)
 
 WINDOW_5H=18000
 WINDOW_7D=604800
 
 # ── Extract all values in a single jq call ────────────────────────────────
-IFS=$'\t' read -r model ctx_pct ctx_size rate_5h rate_5h_resets rate_7d rate_7d_resets < <(
-  echo "$input" | jq -r '[.model.display_name // "unknown", .context_window.used_percentage // 0, .context_window.context_window_size // 200000, .rate_limits.five_hour.used_percentage // 0, .rate_limits.five_hour.resets_at // 0, .rate_limits.seven_day.used_percentage // 0, .rate_limits.seven_day.resets_at // 0] | @tsv' 2>/dev/null
+IFS=$'\t' read -r model ctx_pct ctx_size rate_5h rate_5h_resets rate_7d rate_7d_resets cwd < <(
+  echo "$input" | jq -r '[.model.display_name // "unknown", .context_window.used_percentage // 0, .context_window.context_window_size // 200000, .rate_limits.five_hour.used_percentage // 0, .rate_limits.five_hour.resets_at // 0, .rate_limits.seven_day.used_percentage // 0, .rate_limits.seven_day.resets_at // 0, .workspace.current_dir // .cwd // ""] | @tsv' 2>/dev/null
 )
 
 # Fallback for malformed/empty input
@@ -20,6 +21,7 @@ rate_5h=${rate_5h:-0}
 rate_5h_resets=${rate_5h_resets:-0}
 rate_7d=${rate_7d:-0}
 rate_7d_resets=${rate_7d_resets:-0}
+cwd=${cwd:-$PWD}
 
 # Truncate to integers (guards against floats from upstream)
 ctx_pct=${ctx_pct%.*}
@@ -29,7 +31,30 @@ rate_5h_resets=${rate_5h_resets%.*}
 rate_7d=${rate_7d%.*}
 rate_7d_resets=${rate_7d_resets%.*}
 
-git_branch=$(git --no-optional-locks branch --show-current 2>/dev/null || echo "no-git")
+# ── Host + repo identity ───────────────────────────────────────────────────
+# Machine label. Set CLAUDE_STATUSLINE_HOST in ~/.claude/settings.json "env" to
+# give a box a short name; otherwise fall back to the short hostname so the line
+# still identifies the machine with no configuration. An env var set to the empty
+# string counts as unset.
+host=${CLAUDE_STATUSLINE_HOST:-}
+if [ -z "$host" ]; then
+    host=$(hostname -s 2>/dev/null || hostname 2>/dev/null)
+    host=${host:-unknown-host}
+fi
+
+# One git call yields both the toplevel and the branch; --abbrev-ref prints
+# "HEAD" verbatim when the head is detached.
+IFS=$'\n' read -r -d '' git_root git_branch < <(
+    git --no-optional-locks -C "$cwd" rev-parse --show-toplevel --abbrev-ref HEAD 2>/dev/null
+    printf '\0'
+)
+if [ -n "$git_root" ]; then
+    repo=$(basename "$git_root")
+    [ "$git_branch" = "HEAD" ] && git_branch="detached"
+else
+    repo=$(basename "$cwd")
+    git_branch="no-git"
+fi
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -180,8 +205,8 @@ pace_5h=$(pace_delta "$rate_5h" "$rate_5h_resets" "$WINDOW_5H")
 pace_7d=$(pace_delta "$rate_7d" "$rate_7d_resets" "$WINDOW_7D")
 
 # ── Render ─────────────────────────────────────────────────────────────────
-printf "%s (%s) | git:%s\n" \
-    "$model" "$ctx_size_fmt" "$git_branch"
+printf "%s:%s | %s (%s) | git:%s\n" \
+    "$host" "$repo" "$model" "$ctx_size_fmt" "$git_branch"
 
 printf "%b %.0f%% | 5h %s%.0f%% %s %s | 7d %s%.0f%% %s %s\n" \
     "$ctx_bar" "$ctx_pct" \

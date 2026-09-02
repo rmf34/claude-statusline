@@ -18,6 +18,13 @@ make_json() {
         "$1" "$2" "$3" "$4" "$5"
 }
 
+# Same payload plus the workspace directory the statusline reads for host/repo.
+# Args: current_dir
+make_json_at() {
+    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":24,"context_window_size":200000},"rate_limits":{"five_hour":{"used_percentage":0,"resets_at":0},"seven_day":{"used_percentage":0,"resets_at":0}},"workspace":{"current_dir":"%s"}}' \
+        "$1"
+}
+
 assert_contains() {
     local name=$1 needle=$2 output=$3
     if [[ "$output" == *"$needle"* ]]; then
@@ -124,8 +131,10 @@ out=$(make_json 24 30 $((now + 3600)) 0 0 | bash "$SCRIPT")
 assert_contains "pace_delta_down_arrow" "↓" "$out"
 
 # 17. Pace delta shows → when on pace.
-#     5h: elapsed 80%, used 79%, delta = -1 within ±1 -> →
-out=$(make_json 24 79 $((now + 3600)) 0 0 | bash "$SCRIPT")
+#     5h: elapsed 80%, used 80%, delta ~0 well inside ±1 -> →
+#     Sits mid-band on purpose: a boundary value (used 79, delta exactly -1)
+#     flips to ↓ once a second of wall clock passes between `now` and the run.
+out=$(make_json 24 80 $((now + 3600)) 0 0 | bash "$SCRIPT")
 assert_contains "pace_delta_on_pace_arrow" "→" "$out"
 
 # ── format_reset_5h ───────────────────────────────────────────────────────
@@ -197,6 +206,33 @@ else
     echo "  got:      $out"
     FAIL=$((FAIL + 1))
 fi
+
+# ── Host label and repository name (line 1 identity) ──────────────────────
+
+# 27. CLAUDE_STATUSLINE_HOST names the machine when set.
+out=$(make_json_at "$PWD" | CLAUDE_STATUSLINE_HOST=testbox bash "$SCRIPT")
+assert_contains "host_label_from_env" "testbox:" "$out"
+
+# 28. Empty CLAUDE_STATUSLINE_HOST counts as unset and falls back to the hostname.
+expected_host=$(hostname -s 2>/dev/null || hostname 2>/dev/null)
+out=$(make_json_at "$PWD" | CLAUDE_STATUSLINE_HOST='' bash "$SCRIPT")
+assert_contains "empty_host_env_falls_back_to_hostname" "${expected_host}:" "$out"
+
+# 29. Inside a repository, the repo name is the toplevel basename — not the
+#     session's subdirectory, so it stays stable as you move around the tree.
+repo_dir=$(mktemp -d)/named-repo
+mkdir -p "$repo_dir/deep/nested"
+git -C "$repo_dir" init -q 2>/dev/null
+out=$(make_json_at "$repo_dir/deep/nested" | CLAUDE_STATUSLINE_HOST=testbox bash "$SCRIPT")
+assert_contains "repo_name_is_toplevel_basename" "testbox:named-repo" "$out"
+
+# 30. Outside a repository, the directory basename stands in and the branch
+#     reads no-git rather than going blank.
+plain_dir=$(mktemp -d)/plain-dir
+mkdir -p "$plain_dir"
+out=$(make_json_at "$plain_dir" | CLAUDE_STATUSLINE_HOST=testbox bash "$SCRIPT")
+assert_contains "non_repo_falls_back_to_dir_basename" "testbox:plain-dir" "$out"
+assert_contains "non_repo_branch_is_no_git" "git:no-git" "$out"
 
 echo
 echo "$PASS passed, $FAIL failed"

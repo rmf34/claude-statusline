@@ -12,9 +12,19 @@ if your usage rate is sustainable.
 Two-line output:
 
 ```
-Claude Opus 4.7 (200k) | git:master
+laptop:claude-statusline | Claude Opus 4.7 (200k) | git:master
 ▓▓▓░░░░░░░ 24% | 5h 🟢 32% ↓18% 2h45m | 7d 🟡 41% ↑3% 4d:12h
 ```
+
+Reading the first line:
+
+- `laptop`: which machine the session is on. Set `CLAUDE_STATUSLINE_HOST`
+  to name it (see Setup); otherwise it is the short hostname. Worth having
+  when you run Claude Code on more than one box.
+- `claude-statusline`: the repository the session is working in — the
+  basename of the git toplevel, so it stays the same wherever you `cd`
+  inside the tree. Outside a repository it is the directory basename and
+  the branch reads `git:no-git`.
 
 Reading the second line:
 
@@ -66,7 +76,19 @@ budget allows. `→` means on pace.
    updates when Claude Code triggers a render. Requires Claude Code
    >=2.1.97.
 
-3. Restart Claude Code (or `/statusline` to reload).
+3. Optionally name the machine. The first line falls back to the short
+   hostname, which is often long and ugly (`MBP-2023-XYZ`). Set a short
+   label per machine in the same `~/.claude/settings.json`:
+
+   ```json
+   {
+     "env": {
+       "CLAUDE_STATUSLINE_HOST": "laptop"
+     }
+   }
+   ```
+
+4. Restart Claude Code (or `/statusline` to reload).
 
 ## Two scripts
 
@@ -142,11 +164,12 @@ so changing them is a one-line edit.
 
 ## Tests
 
-26 integration tests, plain bash, no extra deps. They pipe synthetic
+31 integration tests, plain bash, no extra deps. They pipe synthetic
 session JSON into the script and check the output for expected values,
 covering rate_light branches, traffic_light boundaries, pace_delta
 arrows, reset-time formatting, context bar rendering, float truncation,
-model name preservation, and malformed-input fallback:
+model name preservation, host label and repository name resolution, and
+malformed-input fallback:
 
 ```bash
 bash test_statusline.sh
@@ -175,6 +198,7 @@ on stdin. Specifically these fields:
 .rate_limits.five_hour.resets_at
 .rate_limits.seven_day.used_percentage
 .rate_limits.seven_day.resets_at
+.workspace.current_dir
 ```
 
 Verified working on:
