@@ -12,7 +12,7 @@ if your usage rate is sustainable.
 Two-line output:
 
 ```
-laptop:claude-statusline | Claude Opus 4.7 (200k) | git:master
+laptop:claude-statusline | msg:claude-statusline-16 | Claude Opus 4.7 (200k) | git:master
 ▓▓▓░░░░░░░ 24% | 5h 🟢 32% ↓18% 2h45m | 7d 🟡 41% ↑3% 4d:12h
 ```
 
@@ -25,6 +25,11 @@ Reading the first line:
   basename of the git toplevel, so it stays the same wherever you `cd`
   inside the tree. Outside a repository it is the directory basename and
   the branch reads `git:no-git`.
+- `msg:claude-statusline-16`: the session's agent messaging name — what
+  another Claude Code session passes to `SendMessage` to reach this one.
+  It is read from `~/.claude/sessions/<pid>.json` (matched on
+  `session_id`), not from the input's `session_name`, which is the
+  conversation title. The segment is omitted if no registry entry matches.
 
 Reading the second line:
 
@@ -164,12 +169,12 @@ so changing them is a one-line edit.
 
 ## Tests
 
-31 integration tests, plain bash, no extra deps. They pipe synthetic
+35 integration tests, plain bash, no extra deps. They pipe synthetic
 session JSON into the script and check the output for expected values,
 covering rate_light branches, traffic_light boundaries, pace_delta
 arrows, reset-time formatting, context bar rendering, float truncation,
-model name preservation, host label and repository name resolution, and
-malformed-input fallback:
+model name preservation, host label and repository name resolution, agent
+messaging name lookup, and malformed-input fallback:
 
 ```bash
 bash test_statusline.sh

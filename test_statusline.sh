@@ -25,6 +25,26 @@ make_json_at() {
         "$1"
 }
 
+# Workspace payload plus a session_id, for the agent messaging name lookup.
+# Args: current_dir  session_id
+make_json_session() {
+    printf '{"session_id":"%s","session_name":"Some title","model":{"display_name":"Test"},"context_window":{"used_percentage":24,"context_window_size":200000},"rate_limits":{"five_hour":{"used_percentage":0,"resets_at":0},"seven_day":{"used_percentage":0,"resets_at":0}},"workspace":{"current_dir":"%s"}}' \
+        "$2" "$1"
+}
+
+assert_not_contains() {
+    local name=$1 needle=$2 output=$3
+    if [[ "$output" != *"$needle"* ]]; then
+        echo "PASS: $name"
+        PASS=$((PASS + 1))
+    else
+        echo "FAIL: $name"
+        echo "  unexpected: $needle"
+        echo "  got:        $output"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
 assert_contains() {
     local name=$1 needle=$2 output=$3
     if [[ "$output" == *"$needle"* ]]; then
@@ -236,6 +256,26 @@ mkdir -p "$plain_dir"
 out=$(make_json_at "$plain_dir" | CLAUDE_STATUSLINE_HOST=testbox bash "$SCRIPT")
 assert_contains "non_repo_falls_back_to_dir_basename" "testbox:plain-dir" "$out"
 assert_contains "non_repo_branch_is_no_git" "git:no-git" "$out"
+
+# ── Agent messaging name (line 1) ─────────────────────────────────────────
+
+sessions_dir=$(mktemp -d)
+printf '{"pid":111,"sessionId":"other-sess","name":"someone-else-3"}' > "$sessions_dir/111.json"
+printf '{"pid":222,"sessionId":"sess-abc","name":"my-repo-16"}' > "$sessions_dir/222.json"
+
+# 31. The registry entry whose sessionId matches supplies the messaging name,
+#     not .session_name (the conversation title) and not another session's entry.
+out=$(make_json_session "$plain_dir" "sess-abc" | CLAUDE_STATUSLINE_HOST=testbox CLAUDE_STATUSLINE_SESSIONS_DIR="$sessions_dir" bash "$SCRIPT")
+assert_contains "agent_name_from_registry" "testbox:plain-dir | msg:my-repo-16 | Test" "$out"
+assert_not_contains "agent_name_not_other_session" "someone-else-3" "$out"
+
+# 32. No matching registry entry omits the segment entirely.
+out=$(make_json_session "$plain_dir" "sess-missing" | CLAUDE_STATUSLINE_HOST=testbox CLAUDE_STATUSLINE_SESSIONS_DIR="$sessions_dir" bash "$SCRIPT")
+assert_contains "agent_name_missing_omits_segment" "testbox:plain-dir | Test" "$out"
+
+# 33. No session_id in the input omits the segment and leaves cwd parsing intact.
+out=$(make_json_at "$plain_dir" | CLAUDE_STATUSLINE_HOST=testbox CLAUDE_STATUSLINE_SESSIONS_DIR="$sessions_dir" bash "$SCRIPT")
+assert_contains "no_session_id_omits_segment" "testbox:plain-dir | Test" "$out"
 
 echo
 echo "$PASS passed, $FAIL failed"

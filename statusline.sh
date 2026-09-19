@@ -8,8 +8,10 @@ WINDOW_5H=18000
 WINDOW_7D=604800
 
 # ── Extract all values in a single jq call ────────────────────────────────
-IFS=$'\t' read -r model ctx_pct ctx_size rate_5h rate_5h_resets rate_7d rate_7d_resets cwd < <(
-  echo "$input" | jq -r '[.model.display_name // "unknown", .context_window.used_percentage // 0, .context_window.context_window_size // 200000, .rate_limits.five_hour.used_percentage // 0, .rate_limits.five_hour.resets_at // 0, .rate_limits.seven_day.used_percentage // 0, .rate_limits.seven_day.resets_at // 0, .workspace.current_dir // .cwd // ""] | @tsv' 2>/dev/null
+# session_id defaults to a non-empty sentinel: tab is IFS whitespace, so an empty
+# field mid-row would collapse and shift cwd into the wrong variable.
+IFS=$'\t' read -r model ctx_pct ctx_size rate_5h rate_5h_resets rate_7d rate_7d_resets session_id cwd < <(
+  echo "$input" | jq -r '[.model.display_name // "unknown", .context_window.used_percentage // 0, .context_window.context_window_size // 200000, .rate_limits.five_hour.used_percentage // 0, .rate_limits.five_hour.resets_at // 0, .rate_limits.seven_day.used_percentage // 0, .rate_limits.seven_day.resets_at // 0, .session_id // "none", .workspace.current_dir // .cwd // ""] | @tsv' 2>/dev/null
 )
 
 # Fallback for malformed/empty input
@@ -54,6 +56,29 @@ else
     repo=$(basename "$cwd")
     git_branch="no-git"
 fi
+
+# ── Agent messaging name ───────────────────────────────────────────────────
+# The name other sessions pass to SendMessage (e.g. "claude-statusline-16").
+# It is not in the statusline input — .session_name is the conversation title —
+# so read it from the session registry, one <pid>.json per running session.
+# Claude Code is our parent, so $PPID.json is the direct hit; the sessionId
+# check guards against a wrapper shell or a recycled pid, and only then do we
+# fall back to scanning the directory in a single jq call.
+# CLAUDE_STATUSLINE_SESSIONS_DIR overrides the directory (tests); empty = unset.
+sessions_dir=${CLAUDE_STATUSLINE_SESSIONS_DIR:-$HOME/.claude/sessions}
+agent_name=""
+if [ "${session_id:-none}" != "none" ] && [ -d "$sessions_dir" ]; then
+    # shellcheck disable=SC2016  # $sid is a jq variable, not a shell one
+    name_filter='select(.sessionId == $sid) | .name // empty'
+    if [ -f "$sessions_dir/$PPID.json" ]; then
+        agent_name=$(jq -r --arg sid "$session_id" "$name_filter" "$sessions_dir/$PPID.json" 2>/dev/null)
+    fi
+    if [ -z "$agent_name" ]; then
+        agent_name=$(jq -r --arg sid "$session_id" "$name_filter" "$sessions_dir"/*.json 2>/dev/null | head -n 1)
+    fi
+fi
+agent_segment=""
+[ -n "$agent_name" ] && agent_segment=" | msg:$agent_name"
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -204,8 +229,8 @@ pace_5h=$(pace_delta "$rate_5h" "$rate_5h_resets" "$WINDOW_5H")
 pace_7d=$(pace_delta "$rate_7d" "$rate_7d_resets" "$WINDOW_7D")
 
 # ── Render ─────────────────────────────────────────────────────────────────
-printf "%s:%s | %s (%s) | git:%s\n" \
-    "$host" "$repo" "$model" "$ctx_size_fmt" "$git_branch"
+printf "%s:%s%s | %s (%s) | git:%s\n" \
+    "$host" "$repo" "$agent_segment" "$model" "$ctx_size_fmt" "$git_branch"
 
 printf "%b %.0f%% | 5h %s %.0f%% %s %s | 7d %s %.0f%% %s %s\n" \
     "$ctx_bar" "$ctx_pct" \
