@@ -2,7 +2,6 @@
 # Claude Code statusline — two-line with pace delta, progress bar, reset times
 
 input=$(cat)
-echo "$input" >> /tmp/cc_statusline_dumps.jsonl
 NOW=$(date +%s)
 
 WINDOW_5H=18000
