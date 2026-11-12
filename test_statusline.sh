@@ -8,6 +8,8 @@
 
 set -u
 SCRIPT="$(dirname "$0")/statusline.sh"
+CLAUDE_STATUSLINE_RATE_DIR=$(mktemp -d)
+export CLAUDE_STATUSLINE_RATE_DIR
 PASS=0
 FAIL=0
 

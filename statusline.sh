@@ -32,6 +32,25 @@ rate_5h_resets=${rate_5h_resets%.*}
 rate_7d=${rate_7d%.*}
 rate_7d_resets=${rate_7d_resets%.*}
 
+# Share the rate limits: sessions cannot see the statusline input.
+rate_dir=${CLAUDE_STATUSLINE_RATE_DIR:-$HOME/.cache/claude-statusline}
+mkdir -p "$rate_dir" && tmp="$rate_dir/rate_limits.json.$$"
+prev=$(jq -c '.' "$rate_dir/rate_limits.json" 2>/dev/null || echo '{}')
+# shellcheck disable=SC2016  # $f, $p, $c and $prev are jq variables
+echo "$input" | jq -c --argjson now "$NOW" --argjson prev "${prev:-{\}}" '
+    .rate_limits.five_hour as $f
+    | ($prev.rate_limits.five_hour // {}) as $p
+    | select($f != null)
+    | select($f.resets_at > ($p.resets_at // 0)
+        or ($f.resets_at == $p.resets_at and $f.used_percentage >= $p.used_percentage))
+    | (if $f.resets_at != $p.resets_at then {changed_at: $now, prev_changed_at: null}
+       elif $f.used_percentage == $p.used_percentage
+       then {changed_at: $prev.changed_at, prev_changed_at: $prev.prev_changed_at}
+       else {changed_at: $now, prev_changed_at: $prev.changed_at} end) as $c
+    | {written_at: $now} + $c + {rate_limits}' > "$tmp" 2>/dev/null
+if [ -s "$tmp" ]; then mv -f "$tmp" "$rate_dir/rate_limits.json"; else rm -f "$tmp"; fi
+
+
 # ── Host + repo identity ───────────────────────────────────────────────────
 # Machine label. Set CLAUDE_STATUSLINE_HOST in ~/.claude/settings.json "env" to
 # give a box a short name; otherwise fall back to the short hostname so the line
